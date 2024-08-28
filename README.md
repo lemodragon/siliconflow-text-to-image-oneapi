@@ -1,4 +1,4 @@
-## SiliconFlow2cow
+## SiliconFlow2cow.js部署教程
 
 ### 项目概述
 
@@ -88,7 +88,7 @@ SiliconFlow2cow 是一个运行在 Cloudflare Workers 上的服务，它包装�
 响应将包含生成的图像 URL 和其他相关信息，格式类似于 OpenAI API 的响应。
 
 
-## siliconflow2cow-flux-dall-e-3.js文件部署
+## siliconflow2cow-flux-dall-e-3.js部署教程
 
 ### 环境变量如下
 - API_KEY:
