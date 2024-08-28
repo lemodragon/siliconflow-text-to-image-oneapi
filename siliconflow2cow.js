@@ -1,8 +1,8 @@
 //本项目授权api_key，防止被恶意调用
-const API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
+const API_KEY = "sk-1b85cdb86-3a09-4556-8b94-382f6e04223d";
 
 //硅基流动Token列表，每次请求都会随机从列表里取一个Token
-const SILICONFLOW_TOKEN_LIST = ["sk-xxxx","sk-xxxx","sk-xxxx","sk-xxxx"];
+const SILICONFLOW_TOKEN_LIST = ["sk-whpqcqfzgwtittnmvjhmqajliuzvinpnibmscholakqevlin","sk-mrnjywiqrjsjjftuvmcsbyfxqvtjqinpagrdpdyxhxcldnho","sk-qsexlzoqdxyawlysjzajsdccolqhlctpdajczgyhpapspokc","sk-hmmomvkyxqtrtyfbgpvwhhwesafvduobqqxmjgggxhvyuxmm"];
 //是否开启提示词翻译、优化功能
 const SILICONFLOW_IS_TRANSLATE = true;
 //提示词翻译、优化模型
@@ -111,7 +111,10 @@ async function handleRequest(request) {
         let modelKey = userMessage.model || extractModelKey(userMessage.content);
         console.log("Extracted model key:", modelKey);
 
-        const size = extractImageSize(userMessage.content);
+        // 修改这里以正确解析 size 参数
+        let size = userMessage.size || extractImageSize(userMessage.content);
+        console.log("Image size:", size);
+
         const cleanedPrompt = cleanPromptString(userMessage.content);
         const model = CUSTOMER_MODEL_MAP[modelKey] || modelKey || "flux";
         console.log("Selected model:", model);
@@ -136,164 +139,164 @@ async function handleRequest(request) {
 
         const stream = data.stream || false;
         if (stream) {
-          return handleStreamResponse(originalPrompt, translatedPrompt, size, model, url);
-      } else {
-          return handleNonStreamResponse(originalPrompt, translatedPrompt, size, model, url);
-      }
+            return handleStreamResponse(originalPrompt, translatedPrompt, size, model, url);
+        } else {
+            return handleNonStreamResponse(originalPrompt, translatedPrompt, size, model, url);
+        }
 
-  } catch (error) {
-      console.error("处理请求时出错:", error);
-      return new Response(JSON.stringify({ error: `处理请求失败: ${error.message}` }), {
-          status: 500,
-          headers: {
-              'Content-Type': 'application/json',
-              'Access-Control-Allow-Origin': '*',
-              'Access-Control-Allow-Headers': '*'
-          }
-      });
-  }
+    } catch (error) {
+        console.error("处理请求时出错:", error);
+        return new Response(JSON.stringify({ error: `处理请求失败: ${error.message}` }), {
+            status: 500,
+            headers: {
+                'Content-Type': 'application/json',
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': '*'
+            }
+        });
+    }
 }
 
 async function generateImageByText(translatedPrompt, model, imageSize) {
-  const apiUrl = URL_MAP[model] || URL_MAP.flux;
+    const apiUrl = URL_MAP[model] || URL_MAP.flux;
 
-  const jsonBody = {
-      prompt: translatedPrompt,
-      image_size: imageSize,
-      num_inference_steps: 50
-  };
+    const jsonBody = {
+        prompt: translatedPrompt,
+        image_size: imageSize,
+        num_inference_steps: 50
+    };
 
-  if (model !== "flux") {
-      jsonBody.batch_size = 1;
-      jsonBody.guidance_scale = 7.5;
+    if (model !== "flux") {
+        jsonBody.batch_size = 1;
+        jsonBody.guidance_scale = 7.5;
 
-      if (["sdt", "sdxlt"].includes(model)) {
-          jsonBody.num_inference_steps = 6;
-          jsonBody.guidance_scale = 1;
-      } else if (model === "sdxll") {
-          jsonBody.num_inference_steps = 4;
-          jsonBody.guidance_scale = 1;
-      }
-  }
+        if (["sdt", "sdxlt"].includes(model)) {
+            jsonBody.num_inference_steps = 6;
+            jsonBody.guidance_scale = 1;
+        } else if (model === "sdxll") {
+            jsonBody.num_inference_steps = 4;
+            jsonBody.guidance_scale = 1;
+        }
+    }
 
-  return await getImageUrl(apiUrl, jsonBody);
+    return await getImageUrl(apiUrl, jsonBody);
 }
 
 async function generateImageByImg(translatedPrompt, base64, model, imageSize) {
-  const apiUrl = IMG_URL_MAP[model] || IMG_URL_MAP.sdxl;
+    const apiUrl = IMG_URL_MAP[model] || IMG_URL_MAP.sdxl;
 
-  const jsonBody = {
-      prompt: translatedPrompt,
-      image: base64,
-      image_size: imageSize,
-      batch_size: 1,
-      num_inference_steps: 50,
-      guidance_scale: 7.5
-  };
+    const jsonBody = {
+        prompt: translatedPrompt,
+        image: base64,
+        image_size: imageSize,
+        batch_size: 1,
+        num_inference_steps: 50,
+        guidance_scale: 7.5
+    };
 
-  if (model === "sdxll") {
-      jsonBody.num_inference_steps = 4;
-      jsonBody.guidance_scale = 1;
-  } else if (model === "pm") {
-      jsonBody.style_name = "Photographic (Default)";
-      jsonBody.guidance_scale = 5;
-      jsonBody.style_strengh_radio = 20;
-  }
+    if (model === "sdxll") {
+        jsonBody.num_inference_steps = 4;
+        jsonBody.guidance_scale = 1;
+    } else if (model === "pm") {
+        jsonBody.style_name = "Photographic (Default)";
+        jsonBody.guidance_scale = 5;
+        jsonBody.style_strengh_radio = 20;
+    }
 
-  return await getImageUrl(apiUrl, jsonBody);
+    return await getImageUrl(apiUrl, jsonBody);
 }
 
 function handleStreamResponse(originalPrompt, translatedPrompt, size, model, imageUrl) {
-  const uniqueId = `chatcmpl-${Date.now()}`;
-  const createdTimestamp = Math.floor(Date.now() / 1000);
-  const systemFingerprint = "fp_" + Math.random().toString(36).substr(2, 9);
-  const content = `🎨 原始提示词：${originalPrompt}\n` +
-      `🌐 翻译后的提示词：${translatedPrompt}\n` +
-      `📐 图像规格：${size}\n` +
-      `🌟 图像生成成功！\n` +
-      `以下是结果：\n\n` +
-      `![生成的图像](${imageUrl})`;
+    const uniqueId = `chatcmpl-${Date.now()}`;
+    const createdTimestamp = Math.floor(Date.now() / 1000);
+    const systemFingerprint = "fp_" + Math.random().toString(36).substr(2, 9);
+    const content = `🎨 原始提示词：${originalPrompt}\n` +
+        `🌐 翻译后的提示词：${translatedPrompt}\n` +
+        `📐 图像规格：${size}\n` +
+        `🌟 图像生成成功！\n` +
+        `以下是结果：\n\n` +
+        `![生成的图像](${imageUrl})`;
 
-  const responsePayload = {
-      id: uniqueId,
-      object: "chat.completion.chunk",
-      created: createdTimestamp,
-      model: model,
-      system_fingerprint: systemFingerprint,
-      choices: [
-          {
-              index: 0,
-              delta: {
-                  content: content,
-              },
-              finish_reason: "stop",
-          },
-      ],
-  };
+    const responsePayload = {
+        id: uniqueId,
+        object: "chat.completion.chunk",
+        created: createdTimestamp,
+        model: model,
+        system_fingerprint: systemFingerprint,
+        choices: [
+            {
+                index: 0,
+                delta: {
+                    content: content,
+                },
+                finish_reason: "stop",
+            },
+        ],
+    };
 
-  const dataString = JSON.stringify(responsePayload);
+    const dataString = JSON.stringify(responsePayload);
 
-  return new Response(`data: ${dataString}\n\n`, {
-      status: 200,
-      headers: {
-          "Content-Type": "text/event-stream",
-          'Access-Control-Allow-Origin': '*',
-          "Access-Control-Allow-Headers": '*',
-      },
-  });
+    return new Response(`data: ${dataString}\n\n`, {
+        status: 200,
+        headers: {
+            "Content-Type": "text/event-stream",
+            'Access-Control-Allow-Origin': '*',
+            "Access-Control-Allow-Headers": '*',
+        },
+    });
 }
 
 function handleNonStreamResponse(originalPrompt, translatedPrompt, size, model, imageUrl) {
-  const uniqueId = `chatcmpl-${Date.now()}`;
-  const createdTimestamp = Math.floor(Date.now() / 1000);
-  const systemFingerprint = "fp_" + Math.random().toString(36).substr(2, 9);
-  const content = `🎨 原始提示词：${originalPrompt}\n` +
-      `🌐 翻译后的提示词：${translatedPrompt}\n` +
-      `📐 图像规格：${size}\n` +
-      `🌟 图像生成成功！\n` +
-      `以下是结果：\n\n` +
-      `![生成的图像](${imageUrl})`;
+    const uniqueId = `chatcmpl-${Date.now()}`;
+    const createdTimestamp = Math.floor(Date.now() / 1000);
+    const systemFingerprint = "fp_" + Math.random().toString(36).substr(2, 9);
+    const content = `🎨 原始提示词：${originalPrompt}\n` +
+        `🌐 翻译后的提示词：${translatedPrompt}\n` +
+        `📐 图像规格：${size}\n` +
+        `🌟 图像生成成功！\n` +
+        `以下是结果：\n\n` +
+        `![生成的图像](${imageUrl})`;
 
-  const response = {
-      id: uniqueId,
-      object: "chat.completion",
-      created: createdTimestamp,
-      model: model,
-      system_fingerprint: systemFingerprint,
-      choices: [{
-          index: 0,
-          message: {
-              role: "assistant",
-              content: content
-          },
-          finish_reason: "stop"
-      }],
-      usage: {
-          prompt_tokens: translatedPrompt.length,
-          completion_tokens: content.length,
-          total_tokens: translatedPrompt.length + content.length
-      }
-  };
+    const response = {
+        id: uniqueId,
+        object: "chat.completion",
+        created: createdTimestamp,
+        model: model,
+        system_fingerprint: systemFingerprint,
+        choices: [{
+            index: 0,
+            message: {
+                role: "assistant",
+                content: content
+            },
+            finish_reason: "stop"
+        }],
+        usage: {
+            prompt_tokens: translatedPrompt.length,
+            completion_tokens: content.length,
+            total_tokens: translatedPrompt.length + content.length
+        }
+    };
 
-  const dataString = JSON.stringify(response);
+    const dataString = JSON.stringify(response);
 
-  return new Response(dataString, {
-      status: 200,
-      headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Headers': '*'
-      }
-  });
+    return new Response(dataString, {
+        status: 200,
+        headers: {
+            'Content-Type': 'application/json',
+            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Headers': '*'
+        }
+    });
 }
 
 async function getPrompt(prompt) {
-  const requestBodyJson = {
-      model: SILICONFLOW_TRANSLATE_MODEL,
-      messages: [
-          {
-              role: "system",
-              content: `作为 Stable Diffusion Prompt 提示词专家，您将从关键词中创建提示，通常来自 Danbooru 等数据库。
+    const requestBodyJson = {
+        model: SILICONFLOW_TRANSLATE_MODEL,
+        messages: [
+            {
+                role: "system",
+                content: `作为 Stable Diffusion Prompt 提示词专家，您将从关键词中创建提示，通常来自 Danbooru 等数据库。
 
         提示通常描述图像，使用常见词汇，按重要性排列，并用逗号分隔。避免使用"-"或"."，但可以接受空格和自然语言。避免词汇重复。
 
