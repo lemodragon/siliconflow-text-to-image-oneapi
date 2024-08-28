@@ -1,8 +1,8 @@
-## SiliconFlow Text-to-Image API Wrapper
+## SiliconFlow2cow
 
 ### 项目概述
 
-SiliconFlow Text-to-Image API Wrapper 是一个运行在 Cloudflare Workers 上的服务，它包装了多个文本生成图像的 API，提供了一个统一的接口来访问多种图像生成模型。这个项目允许用户通过简单的 API 调用来生成高质量的图像，支持多种模型选择和图像大小定制。
+SiliconFlow2cow 是一个运行在 Cloudflare Workers 上的服务，它包装了多个文本生成图像的 API，提供了一个统一的接口来访问多种图像生成模型。这个项目允许用户通过简单的 API 调用来生成高质量的图像，支持多种模型选择和图像大小定制。
 
 ### 功能特性
 
