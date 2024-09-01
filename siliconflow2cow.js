@@ -37,11 +37,15 @@ const IMG_URL_MAP = {
     pm: "https://api.siliconflow.cn/v1/TencentARC/PhotoMaker/image-to-image"
 };
 
+// 修改：更新 RATIO_MAP，添加 3:4 比例
 const RATIO_MAP = {
     "1:1": "1024x1024",
     "1:2": "1024x2048",
+    "2:1": "2048x1024",
     "3:2": "1536x1024",
-    "4:3": "1536x2048",
+    "2:3": "1024x1536",
+    "4:3": "1536x1152",
+    "3:4": "1152x1536",  // 新添加的比例
     "16:9": "2048x1152",
     "9:16": "1152x2048"
 };
@@ -111,7 +115,6 @@ async function handleRequest(request) {
         let modelKey = userMessage.model || extractModelKey(userMessage.content);
         console.log("Extracted model key:", modelKey);
 
-        // 修改这里以正确解析 size 参数
         let size = userMessage.size || extractImageSize(userMessage.content);
         console.log("Image size:", size);
 
@@ -377,9 +380,17 @@ function extractModelKey(prompt) {
     return "";
 }
 
+// 修改：提取尺寸信息的函数，增加日志
 function extractImageSize(prompt) {
     const match = prompt.match(/---(\d+:\d+)/);
-    return match ? RATIO_MAP[match[1].trim()] || "1024x1024" : "1024x1024";
+    if (match) {
+        const ratio = match[1].trim();
+        const size = RATIO_MAP[ratio] || "1024x1024";
+        console.log(`Extracted ratio: ${ratio}, Mapped size: ${size}`);
+        return size;
+    }
+    console.log("No size specified in prompt, using default: 1024x1024");
+    return "1024x1024";
 }
 
 function cleanPromptString(prompt) {
@@ -396,6 +407,17 @@ function extractImageUrl(text) {
     return match ? match[0] : null;
 }
 
+// Workers 环境中的 base64 编码函数
+function base64Encode(arrayBuffer) {
+    const base64 = [];
+    const bytes = new Uint8Array(arrayBuffer);
+    const len = bytes.byteLength;
+    for (let i = 0; i < len; i++) {
+        base64.push(String.fromCharCode(bytes[i]));
+    }
+    return btoa(base64.join(''));
+}
+
 async function convertImageToBase64(imageUrl) {
     const response = await fetch(imageUrl);
     if (!response.ok) {
@@ -403,7 +425,7 @@ async function convertImageToBase64(imageUrl) {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    const base64Image = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+    const base64Image = base64Encode(arrayBuffer);
     return `data:image/webp;base64,${base64Image}`;
 }
 
