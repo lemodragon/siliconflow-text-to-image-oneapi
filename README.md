@@ -30,30 +30,17 @@ SiliconFlow2cow 是一个运行在 Cloudflare Workers 上的服务，它包装�
       "size": "2048x1152"
     }
   ],
-  "model": "FLUX.1"
+  "model": "flux.d"
 }
-```
 
-#### 指定模型和尺寸
-
-你可以通过以下两种方式指定模型和图像尺寸：
-
-1. 在请求体中直接指定：
-   ```json
-   {
-     "messages": [{ "role": "user", "content": "画一个小女孩" }],
-     "model": "stable-diffusion-3-medium",
-     "size": "1024x1024"
-   }
-   ```
-
-2. 在 content 字段中使用特殊语法：
+####或者
+在 content 字段中使用特殊语法：
    ```json
    {
      "messages": [
        {
          "role": "user",
-         "content": "画一个小女孩 -m sd3 ---16:9"
+         "content": "画一个小女孩 -m flux.s ---16:9"
        }
      ]
    }
@@ -67,7 +54,7 @@ SiliconFlow2cow 是一个运行在 Cloudflare Workers 上的服务，它包装�
 - `SILICONFLOW_TOKEN_LIST`: SiliconFlow API 的令牌列表
 - `SILICONFLOW_IS_TRANSLATE`: 是否启用提示词翻译功能
 - `SILICONFLOW_TRANSLATE_MODEL`: 用于翻译的模型
-- `CUSTOMER_MODEL_MAP`: 客户端可用的模型映射
+- `CUSTOMER_MODEL_MAP`: 客户端可用的模型映射(flux.s、flux.d、sd3、sd2、sd1、sdt、sdxl、sdxll、pm)
 
 ### API 参考
 
