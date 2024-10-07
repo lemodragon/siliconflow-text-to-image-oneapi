@@ -3,41 +3,24 @@ const API_KEY = "sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx";
 
 //硅基流动Token列表，每次请求都会随机从列表里取一个Token
 const SILICONFLOW_TOKEN_LIST = ["sk-xxxxxx","sk-xxxxx","sk-xxxxx","sk-xxxxx"];
-//是否开启提示词翻译、优化功能
+// 是否开启提示词翻译、优化功能
 const SILICONFLOW_IS_TRANSLATE = true;
-//提示词翻译、优化模型
-const SILICONFLOW_TRANSLATE_MODEL = "Qwen/Qwen1.5-7B-Chat";
+// 提示词翻译、优化模型
+const SILICONFLOW_TRANSLATE_MODEL = "THUDM/glm-4-9b-chat";
 
-//模型映射，设置客户端可用的模型。one-api，new-api在添加渠道时可使用"获取模型列表"功能，一键添加模型
+// 模型映射，设置客户端可用的模型。
 const CUSTOMER_MODEL_MAP = {
-    "FLUX.1": "flux",
-    "stable-diffusion-3-medium": "sd3",
-    "stable-diffusion-xl-base": "sdxl",
-    "stable-diffusion-xl-turbo": "sdxlt",
-    "stable-diffusion-xl-lightning": "sdxll",
-    "stable-diffusion-2-1": "sd2",
-    "stable-diffusion-turbo": "sdt",
-    "PhotoMaker": "pm"
+    "flux.s": "black-forest-labs/FLUX.1-schnell",
+    "flux.d": "black-forest-labs/FLUX.1-dev",
+    "sd3": "stabilityai/stable-diffusion-3-medium",
+    "sd1": "stabilityai/stable-diffusion-xl-base-1.0",
+    "sd2": "stabilityai/stable-diffusion-2-1",
+    "sdt": "stabilityai/sd-turbo",
+    "sdxl": "stabilityai/sdxl-turbo",
+    "sdxll": "ByteDance/SDXL-Lightning",
+    "pm": "TencentARC/PhotoMaker"
 };
 
-const URL_MAP = {
-    flux: "https://api.siliconflow.cn/v1/black-forest-labs/FLUX.1-schnell/text-to-image",
-    sd3: "https://api.siliconflow.cn/v1/stabilityai/stable-diffusion-3-medium/text-to-image",
-    sdxl: "https://api.siliconflow.cn/v1/stabilityai/stable-diffusion-xl-base-1.0/text-to-image",
-    sd2: "https://api.siliconflow.cn/v1/stabilityai/stable-diffusion-2-1/text-to-image",
-    sdt: "https://api.siliconflow.cn/v1/stabilityai/sd-turbo/text-to-image",
-    sdxlt: "https://api.siliconflow.cn/v1/stabilityai/sdxl-turbo/text-to-image",
-    sdxll: "https://api.siliconflow.cn/v1/ByteDance/SDXL-Lightning/text-to-image"
-};
-
-const IMG_URL_MAP = {
-    sdxl: "https://api.siliconflow.cn/v1/stabilityai/stable-diffusion-xl-base-1.0/image-to-image",
-    sd2: "https://api.siliconflow.cn/v1/stabilityai/stable-diffusion-2-1/image-to-image",
-    sdxll: "https://api.siliconflow.cn/v1/ByteDance/SDXL-Lightning/image-to-image",
-    pm: "https://api.siliconflow.cn/v1/TencentARC/PhotoMaker/image-to-image"
-};
-
-// 修改：更新 RATIO_MAP，添加 3:4 比例
 const RATIO_MAP = {
     "1:1": "1024x1024",
     "1:2": "1024x2048",
@@ -45,7 +28,7 @@ const RATIO_MAP = {
     "3:2": "1536x1024",
     "2:3": "1024x1536",
     "4:3": "1536x1152",
-    "3:4": "1152x1536",  // 新添加的比例
+    "3:4": "1152x1536",
     "16:9": "2048x1152",
     "9:16": "1152x2048"
 };
@@ -112,21 +95,28 @@ async function handleRequest(request) {
 
         console.log("User message:", userMessage);
 
-        let modelKey = userMessage.model || extractModelKey(userMessage.content);
+        let modelKey = data.model || userMessage.model || extractModelKey(userMessage.content);
         console.log("Extracted model key:", modelKey);
 
         let size = userMessage.size || extractImageSize(userMessage.content);
         console.log("Image size:", size);
 
         const cleanedPrompt = cleanPromptString(userMessage.content);
-        const model = CUSTOMER_MODEL_MAP[modelKey] || modelKey || "flux";
+        const model = CUSTOMER_MODEL_MAP[modelKey] || modelKey || "black-forest-labs/FLUX.1-schnell";
         console.log("Selected model:", model);
-        console.log("API URL:", URL_MAP[model]);
 
         const prompt = removeModelAndSizeFromPrompt(cleanedPrompt);
         const imageUrl = extractImageUrl(prompt);
         const originalPrompt = removeImageUrls(prompt);
-        const translatedPrompt = SILICONFLOW_IS_TRANSLATE ? await getPrompt(originalPrompt) : originalPrompt;
+        let translatedPrompt;
+        try {
+            translatedPrompt = SILICONFLOW_IS_TRANSLATE ? await getPrompt(originalPrompt) : originalPrompt;
+        } catch (error) {
+            console.error("Translation failed, using original prompt:", error);
+            translatedPrompt = originalPrompt;
+        }
+
+        console.log("Translated prompt:", translatedPrompt);
 
         let url;
         if (!imageUrl) {
@@ -135,6 +125,8 @@ async function handleRequest(request) {
             const base64 = await convertImageToBase64(imageUrl);
             url = await generateImageByImg(translatedPrompt, base64, model, size);
         }
+
+        console.log("Generated image URL:", url);
 
         if (!url) {
             url = "https://pic.netbian.com/uploads/allimg/240808/192001-17231160015724.jpg";
@@ -161,22 +153,25 @@ async function handleRequest(request) {
 }
 
 async function generateImageByText(translatedPrompt, model, imageSize) {
-    const apiUrl = URL_MAP[model] || URL_MAP.flux;
+    const apiUrl = "https://api.siliconflow.cn/v1/image/generations";
 
     const jsonBody = {
+        model: model,
         prompt: translatedPrompt,
         image_size: imageSize,
-        num_inference_steps: 50
+        seed: Math.floor(Math.random() * 1000000)
     };
 
-    if (model !== "flux") {
-        jsonBody.batch_size = 1;
+    if (model.includes("FLUX")) {
+        jsonBody.num_inference_steps = 50;
+    } else {
+        jsonBody.num_inference_steps = 50;
         jsonBody.guidance_scale = 7.5;
 
-        if (["sdt", "sdxlt"].includes(model)) {
+        if (["stabilityai/sd-turbo", "stabilityai/sdxl-turbo"].includes(model)) {
             jsonBody.num_inference_steps = 6;
             jsonBody.guidance_scale = 1;
-        } else if (model === "sdxll") {
+        } else if (model === "ByteDance/SDXL-Lightning") {
             jsonBody.num_inference_steps = 4;
             jsonBody.guidance_scale = 1;
         }
@@ -186,24 +181,25 @@ async function generateImageByText(translatedPrompt, model, imageSize) {
 }
 
 async function generateImageByImg(translatedPrompt, base64, model, imageSize) {
-    const apiUrl = IMG_URL_MAP[model] || IMG_URL_MAP.sdxl;
+    const apiUrl = "https://api.siliconflow.cn/v1/image/generations";
 
     const jsonBody = {
+        model: model,
         prompt: translatedPrompt,
         image: base64,
         image_size: imageSize,
-        batch_size: 1,
         num_inference_steps: 50,
-        guidance_scale: 7.5
+        guidance_scale: 7.5,
+        seed: Math.floor(Math.random() * 1000000)
     };
 
-    if (model === "sdxll") {
+    if (model === "ByteDance/SDXL-Lightning") {
         jsonBody.num_inference_steps = 4;
         jsonBody.guidance_scale = 1;
-    } else if (model === "pm") {
+    } else if (model === "TencentARC/PhotoMaker") {
         jsonBody.style_name = "Photographic (Default)";
         jsonBody.guidance_scale = 5;
-        jsonBody.style_strengh_radio = 20;
+        jsonBody.style_strength_ratio = 20;
     }
 
     return await getImageUrl(apiUrl, jsonBody);
@@ -336,19 +332,33 @@ async function getPrompt(prompt) {
         n: 1
     };
 
-    const apiUrl="https://api.siliconflow.cn/v1/chat/completions";
-    const response = await postRequest(apiUrl,requestBodyJson);
+    const apiUrl = "https://api.siliconflow.cn/v1/chat/completions";
+    const response = await postRequest(apiUrl, requestBodyJson);
     const jsonResponse = await response.json();
+    if (jsonResponse.code && jsonResponse.message) {
+        console.error("API Error:", jsonResponse);
+        throw new Error(`API Error: ${jsonResponse.message}`);
+    }
+    if (!jsonResponse.choices || !jsonResponse.choices[0] || !jsonResponse.choices[0].message) {
+        console.error("Unexpected response structure:", jsonResponse);
+        throw new Error("Unexpected response structure from translation API");
+    }
     const res = jsonResponse.choices[0].message.content;
     return res;
 }
 
 async function getImageUrl(apiUrl, jsonBody){
-    const response = await postRequest(apiUrl,jsonBody);
-    if (!response.ok) {
-        throw new Error('Unexpected response ' + response.status);
-    }
+    const response = await postRequest(apiUrl, jsonBody);
     const jsonResponse = await response.json();
+    console.log("API Response:", jsonResponse);  // 添加日志
+    if (jsonResponse.code && jsonResponse.message) {
+        console.error("API Error:", jsonResponse);
+        throw new Error(`API Error: ${jsonResponse.message}`);
+    }
+    if (!jsonResponse.images || !jsonResponse.images[0] || !jsonResponse.images[0].url) {
+        console.error("Unexpected response structure:", jsonResponse);
+        throw new Error("Unexpected response structure from image generation API");
+    }
     return jsonResponse.images[0].url;
 }
 
@@ -371,7 +381,6 @@ function extractModelKey(prompt) {
     const match = prompt.match(/-m\s+(\S+)/);
     if (match) {
         const extractedKey = match[1].trim().toLowerCase();
-        // 检查提取的键是否在 CUSTOMER_MODEL_MAP 中，或者是否是 CUSTOMER_MODEL_MAP 中值的一部分
         const foundKey = Object.entries(CUSTOMER_MODEL_MAP).find(([key, value]) => 
             key.toLowerCase() === extractedKey || value.toLowerCase() === extractedKey
         );
@@ -380,7 +389,6 @@ function extractModelKey(prompt) {
     return "";
 }
 
-// 修改：提取尺寸信息的函数，增加日志
 function extractImageSize(prompt) {
     const match = prompt.match(/---(\d+:\d+)/);
     if (match) {
@@ -407,7 +415,6 @@ function extractImageUrl(text) {
     return match ? match[0] : null;
 }
 
-// Workers 环境中的 base64 编码函数
 function base64Encode(arrayBuffer) {
     const base64 = [];
     const bytes = new Uint8Array(arrayBuffer);
